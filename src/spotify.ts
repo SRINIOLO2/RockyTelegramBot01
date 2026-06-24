@@ -1,8 +1,13 @@
 import SpotifyWebApi from 'spotify-web-api-node';
 import { getTokens, saveTokens, UserTokens } from './db';
 
-// Required scopes to check currently playing status
-export const SPOTIFY_SCOPES = ['user-read-currently-playing', 'user-read-playback-state'];
+// Required scopes to check currently playing status and manage playlists
+export const SPOTIFY_SCOPES = [
+  'user-read-currently-playing', 
+  'user-read-playback-state',
+  'playlist-modify-public',
+  'playlist-modify-private'
+];
 
 /**
  * Creates an unauthenticated Spotify client instance.
@@ -98,6 +103,7 @@ export interface PlaybackState {
   trackName: string;
   artists: string;
   spotifyUrl: string;
+  trackUri?: string;
 }
 
 /**
@@ -127,15 +133,37 @@ export async function getCurrentlyPlaying(telegramId: string): Promise<PlaybackS
     const artists = item.artists.map((a: any) => a.name).join(', ');
     const spotifyUrl = item.external_urls.spotify;
     const isPlaying = playback.is_playing;
+    const trackUri = item.uri;
 
     return {
       isPlaying,
       trackName,
       artists,
       spotifyUrl,
+      trackUri,
     };
   } catch (err) {
     console.error(`Error fetching currently playing track for user ${telegramId}:`, err);
+    throw err;
+  }
+}
+
+/**
+ * Adds a track to a shared Spotify playlist.
+ */
+export async function addTrackToPlaylist(telegramId: string, trackUri: string): Promise<void> {
+  const spotifyApi = await getAuthenticatedSpotifyClient(telegramId);
+  if (!spotifyApi) return;
+
+  const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
+  if (!playlistId) {
+    throw new Error('SPOTIFY_PLAYLIST_ID not configured in .env');
+  }
+
+  try {
+    await spotifyApi.addTracksToPlaylist(playlistId, [trackUri]);
+  } catch (err) {
+    console.error(`Error adding track to playlist for user ${telegramId}:`, err);
     throw err;
   }
 }
