@@ -61,7 +61,7 @@ bot.command(['start', 'login'], async (ctx) => {
 
   await ctx.replyWithHTML(
     `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
-    { disable_web_page_preview: true }
+    { link_preview_options: { is_disabled: true } }
   );
 });
 
