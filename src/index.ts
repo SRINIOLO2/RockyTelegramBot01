@@ -86,6 +86,30 @@ const ROCKY_LINES = {
     "Sad! Cannot write to playlist! Bad, bad, bad! ♪",
     "Failure! Playlist reject song. Broken? Question? ♫",
     "Cannot add! Check Spotify rules, friend. Sad! ♪"
+  ],
+  welcomeAlreadyConnectedLink: [
+    "Amaze! Friend {name}! Spotify is already connected! But if you want to connect different account, use link below, please? ♪\n\n",
+    "Friend {name}! You have link to Spotify already! Yes! But if link is broken or you want new account, click below! ♫\n\n",
+    "Yes, yes, yes! Already connected, friend {name}! Want to re-authenticate or use other Spotify? Use this link: ♪\n\n",
+    "Amaze! Connection exists! If you must change accounts or refresh, click the button below, yes? Yes! ♫\n\n"
+  ],
+  connectionSuccess: [
+    "✅ <b>Amaze! Spotify Connected!</b>\nYour Spotify account is now linked! Yes, yes, yes! ♪ ♫\nUse /menu to start sharing!",
+    "✅ <b>Happy! Connection successful!</b>\nSpotify is linked to bot! We hear music now! Good, good, good! ♪\nUse /menu to start!",
+    "✅ <b>Yes, yes, yes! Spotify connected!</b>\nLinked successfully, friend! Now we can see vibes! ♫\nUse /menu to start!",
+    "✅ <b>Amaze! Linked!</b>\nSpotify account is connected! Share sound now! Yes! ♪ ♫\nUse /menu to start!"
+  ],
+  userNotLinked: [
+    "Sad! Friend {name} has not linked Spotify account yet. Bad! They must send /login to bot! ♪",
+    "Silence! Friend {name} has no Spotify connection. They must use /login, yes? Yes! ♫",
+    "No connection! Friend {name} needs to authorize Spotify. Tell them to send /login, please! ♪ ♫",
+    "Cannot check vibes! Friend {name} has not connected Spotify. Sad! They must run /login! ♪"
+  ],
+  selfNotLinked: [
+    "❌ <b>Sad! Spotify not connected.</b>\nFriend, you must link account first! Click /login, please? ♪",
+    "❌ <b>No Spotify!</b>\nCannot check music without connection! Run /login to fix, yes? ♫",
+    "❌ <b>Failure!</b>\nYour Spotify is not linked to bot! Run /login first! Bad, bad, bad! ♪ ♫",
+    "❌ <b>Silence!</b>\nYou have not connected Spotify! Use /login to add connection, please? ♪"
   ]
 };
 
@@ -110,8 +134,8 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
-// Command: /start or /login or /menu
-bot.command(['start', 'login', 'menu'], async (ctx) => {
+// Command: /start or /menu
+bot.command(['start', 'menu'], async (ctx) => {
   const userId = String(ctx.from.id);
   const userName = ALLOWED_USERS[userId];
   const authUrl = getAuthorizationUrl(userId);
@@ -133,13 +157,32 @@ bot.command(['start', 'login', 'menu'], async (ctx) => {
   }
 });
 
+// Command: /login
+bot.command('login', async (ctx) => {
+  const userId = String(ctx.from.id);
+  const userName = ALLOWED_USERS[userId];
+  const authUrl = getAuthorizationUrl(userId);
+
+  const existingTokens = await getTokens(userId);
+  
+  const statusMessage = existingTokens 
+    ? getRandomLine('welcomeAlreadyConnectedLink', { name: userName })
+    : getRandomLine('welcomeNotConnected', { name: userName });
+
+  await ctx.replyWithHTML(
+    `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
+    { link_preview_options: { is_disabled: true } }
+  );
+});
+
 // Helper for "Share"
 async function handleShare(ctx: any, userId: string, userName: string) {
   try {
     const playback = await getCurrentlyPlaying(userId);
 
     if (playback === null) {
-      return ctx.replyWithHTML(`❌ <b>Spotify not connected.</b>\nPlease link account first using /login. Bad!`);
+      const msg = getRandomLine('selfNotLinked');
+      return ctx.replyWithHTML(msg);
     }
 
     if (!playback.isPlaying) {
@@ -192,7 +235,8 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
     const myPlayback = await getCurrentlyPlaying(senderId);
 
     if (playback === null) {
-      return ctx.reply(`${otherUserName} has not linked Spotify. Bad! Use /login.`);
+      const msg = getRandomLine('userNotLinked', { name: otherUserName });
+      return ctx.reply(msg);
     }
 
     if (!playback.isPlaying) {
@@ -284,9 +328,10 @@ app.get('/callback', async (req, res) => {
     console.log(`Successfully authenticated Spotify for user ${telegramName} (${state})`);
 
     // Notify user on Telegram
+    const successMsg = getRandomLine('connectionSuccess');
     bot.telegram.sendMessage(
       state,
-      `✅ <b>Spotify Connected!</b>\nAmaze! Spotify is linked! Share music now. Yes, yes, yes! ♪ ♫\nUse /menu to start.`,
+      successMsg,
       { parse_mode: 'HTML' }
     ).catch(err => console.error(`Failed to send Telegram confirmation message to ${state}:`, err));
 
