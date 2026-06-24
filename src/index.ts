@@ -32,6 +32,72 @@ if (allowedIds.length === 0) {
 // Initialize Telegraf Bot
 const bot = new Telegraf(token);
 
+const ROCKY_LINES = {
+  welcomeConnected: [
+    "Amaze! Friend {name}! You are ready to share music. Yes, yes, yes! ♪ ♫\nWhat do you want to do? Question?",
+    "Happy! Friend {name} is here! Music is good, yes? Yes! ♪\nWhat do you want to do? Question?",
+    "Friend {name}! We share music, we learn! Good, good, good! ♫\nWhat do you want to do? Question?",
+    "Amaze, friend {name}! You connected! Now we listen together, yes? Yes! ♪ ♫\nWhat do you want to do? Question?"
+  ],
+  welcomeNotConnected: [
+    "Welcome Friend {name}! Need Spotify to share music! Authorize below, please? ♪\n\n",
+    "Hello Friend {name}! Cannot hear music without Spotify! Click link, click link! ♫\n\n",
+    "Friend {name}! Setup Spotify first, yes? Yes! Then we share good sounds! ♪\n\n",
+    "Welcome! To share human music, must connect Spotify! You do this now? Question? ♪\n\n"
+  ],
+  notListening: [
+    "Friend {name}, you are not listening to music right now! Bad! ♫",
+    "Silence! Friend {name} plays nothing. Why? Question? ♪",
+    "No sound! Friend {name} is not playing Spotify. Bad, bad, bad! ♫",
+    "You do not listen to music, friend {name}. I am leak! Put some sound, yes? ♪"
+  ],
+  otherNotListening: [
+    "Sad! Friend {name} is not listening to anything right now. ♫",
+    "Friend {name} has quiet room. No music! Sad! ♪",
+    "No music from friend {name}! They must be sleeping or working, yes? ♪ ♫",
+    "Quiet! Friend {name} is not playing Spotify. I wait! ♫"
+  ],
+  shareSuccess: [
+    "Amaze! Friend {name} is listening to:\n{url}\n#music ♪ ♫",
+    "Good, good, good! Friend {name} shares sound:\n{url}\n#music ♪",
+    "I hear this! Friend {name} plays:\n{url}\n#music ♫",
+    "Yes, yes, yes! Listen to friend {name} music:\n{url}\n#music ♪ ♫"
+  ],
+  vibesSuccess: [
+    "🎵 Friend <b>{name}</b> is listening to:\n<b>{track}</b> by <i>{artists}</i>\n\n{url}",
+    "🎵 Good vibes! Friend <b>{name}</b> plays:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♪",
+    "🎵 Listen! Friend <b>{name}</b> is listening:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♫",
+    "🎵 Beautiful sound! Friend <b>{name}</b> listening to:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♪ ♫"
+  ],
+  sameSong: [
+    "\n\n<b>AMAZE! AMAZE! AMAZE!</b>\nYou and {name} are listening to the EXACT SAME SONG! Yes, yes, yes! ♪ ♫",
+    "\n\n<b>YES, YES, YES!</b>\nSame song! You and {name} have same brain! Amaze! ♪ ♫",
+    "\n\n<b>HEAR THIS!</b>\nYou and friend {name} listen to same thing at same time! Match! Good, good, good! ♪",
+    "\n\n<b>AMAZE!</b>\nDual listening! Same sound waves for you and {name}! Yes! ♫"
+  ],
+  playlistSuccess: [
+    "Amaze! Song added to shared playlist! Yes, yes, yes! ♪",
+    "Added! Playlist is bigger now! Good, good, good! ♫",
+    "Save to memory! Song is in playlist! Yes! ♪",
+    "Amaze! I keep this song forever in shared playlist! Yes, yes, yes! ♪ ♫"
+  ],
+  playlistError: [
+    "Error adding track! Do you have playlist-modify permissions? Bad! ♫",
+    "Sad! Cannot write to playlist! Bad, bad, bad! ♪",
+    "Failure! Playlist reject song. Broken? Question? ♫",
+    "Cannot add! Check Spotify rules, friend. Sad! ♪"
+  ]
+};
+
+function getRandomLine(type: keyof typeof ROCKY_LINES, replacements: Record<string, string> = {}): string {
+  const lines = ROCKY_LINES[type];
+  const line = lines[Math.floor(Math.random() * lines.length)];
+  return Object.entries(replacements).reduce(
+    (acc, [key, val]) => acc.replace(new RegExp(`{${key}}`, 'g'), val),
+    line
+  );
+}
+
 // Middleware: Restrict access to allowed users
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id ? String(ctx.from.id) : null;
@@ -53,13 +119,13 @@ bot.command(['start', 'login', 'menu'], async (ctx) => {
   const existingTokens = await getTokens(userId);
   
   if (existingTokens) {
-    const msg = `Amaze! Friend ${userName}! You are ready to share music. Yes, yes, yes! ♪ ♫\nWhat do you want to do? Question?`;
+    const msg = getRandomLine('welcomeConnected', { name: userName });
     await ctx.reply(msg, Markup.inlineKeyboard([
       [Markup.button.callback('🎵 Share My Song', 'action_share')],
       [Markup.button.callback('👀 Check Vibes', 'action_vibes')]
     ]));
   } else {
-    const statusMessage = `Welcome Friend ${userName}! Need Spotify to share music! Authorize below, please? ♪\n\n`;
+    const statusMessage = getRandomLine('welcomeNotConnected', { name: userName });
     await ctx.replyWithHTML(
       `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
       { link_preview_options: { is_disabled: true } }
@@ -77,11 +143,12 @@ async function handleShare(ctx: any, userId: string, userName: string) {
     }
 
     if (!playback.isPlaying) {
-      return ctx.reply(`Friend ${userName}, you are not listening to music right now! Bad!`);
+      const msg = getRandomLine('notListening', { name: userName });
+      return ctx.reply(msg);
     }
 
     // Reply with track URL and interactive button to add to playlist
-    const msg = `Amaze! Friend ${userName} is listening to:\n${playback.spotifyUrl}\n#music ♪ ♫`;
+    const msg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl });
     
     if (playback.trackUri) {
       await ctx.reply(msg, Markup.inlineKeyboard([
@@ -129,18 +196,22 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
     }
 
     if (!playback.isPlaying) {
-      return ctx.reply(`Sad! Friend ${otherUserName} is not listening to anything right now.`);
+      const msg = getRandomLine('otherNotListening', { name: otherUserName });
+      return ctx.reply(msg);
     }
 
     // Check if listening to the same song
     let sameSongText = '';
     if (myPlayback?.isPlaying && playback.trackUri && myPlayback.trackUri === playback.trackUri) {
-      sameSongText = `\n\n<b>AMAZE! AMAZE! AMAZE!</b>\nYou and ${otherUserName} are listening to the EXACT SAME SONG! Yes, yes, yes! ♪ ♫`;
+      sameSongText = getRandomLine('sameSong', { name: otherUserName });
     }
 
-    const msg = `🎵 Friend <b>${otherUserName}</b> is listening to:\n` +
-      `<b>${playback.trackName}</b> by <i>${playback.artists}</i>\n\n` +
-      `${playback.spotifyUrl}${sameSongText}`;
+    const msg = getRandomLine('vibesSuccess', {
+      name: otherUserName,
+      track: playback.trackName,
+      artists: playback.artists,
+      url: playback.spotifyUrl
+    }) + sameSongText;
 
     if (playback.trackUri) {
       await ctx.replyWithHTML(msg, Markup.inlineKeyboard([
@@ -180,10 +251,12 @@ bot.action(/^add_pl_(.+)$/, async (ctx) => {
       return ctx.answerCbQuery('Error: SPOTIFY_PLAYLIST_ID is missing from .env! Bad!', { show_alert: true });
     }
     await addTrackToPlaylist(userId, trackUri);
-    await ctx.answerCbQuery('Amaze! Song added to shared playlist! Yes, yes, yes! ♪', { show_alert: false });
+    const alertMsg = getRandomLine('playlistSuccess');
+    await ctx.answerCbQuery(alertMsg, { show_alert: false });
   } catch (err: any) {
     console.error('Error adding track to playlist:', err);
-    await ctx.answerCbQuery('Error adding track! Do you have playlist-modify permissions?', { show_alert: true });
+    const errMsg = getRandomLine('playlistError');
+    await ctx.answerCbQuery(errMsg, { show_alert: true });
   }
 });
 
