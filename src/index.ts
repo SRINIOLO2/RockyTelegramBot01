@@ -355,8 +355,8 @@ app.get('/callback', async (req, res) => {
 // Start Express and Telegram Bot
 async function main() {
   // Start OAuth callback server
-  app.listen(port, () => {
-    console.log(`Spotify callback server listening on port ${port}`);
+  app.listen(Number(port), '0.0.0.0', () => {
+    console.log(`Spotify callback server listening on port ${port} (0.0.0.0)`);
   });
 
   // Launch Telegram Bot (Long-Polling mode)
