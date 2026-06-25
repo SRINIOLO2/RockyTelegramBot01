@@ -290,6 +290,8 @@ bot.on('inline_query', async (ctx) => {
   const userId = String(ctx.from.id);
   const userName = ALLOWED_USERS[userId];
 
+  console.log(`Received inline query from ${userName || 'unknown user'} (${userId})`);
+
   try {
     const results: any[] = [];
     
