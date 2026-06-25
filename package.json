@@ -1,6 +1,6 @@
 {
   "name": "spotify-telegram-bot",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Private Spotify and Telegram bot integration for sharing and checking playback status",
   "main": "dist/index.js",
   "scripts": {
