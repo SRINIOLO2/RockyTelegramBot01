@@ -1,5 +1,6 @@
 services:
   spotify-bot:
+    build: .
     image: rocky-telegram-bot:latest
     container_name: spotify-telegram-bot
     restart: unless-stopped
