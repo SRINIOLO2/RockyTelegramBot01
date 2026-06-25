@@ -175,6 +175,20 @@ bot.command('login', async (ctx) => {
   );
 });
 
+// Helper to send a message or edit the existing message (for callback queries / inline messages)
+async function sendOrEdit(ctx: any, text: string, extra: any = {}) {
+  const options = { parse_mode: 'HTML' as const, ...extra };
+  if (ctx.callbackQuery) {
+    try {
+      await ctx.editMessageText(text, options);
+      return;
+    } catch (err) {
+      console.error('Failed to edit message, falling back to reply:', err);
+    }
+  }
+  await ctx.reply(text, options);
+}
+
 // Helper for "Share"
 async function handleShare(ctx: any, userId: string, userName: string) {
   try {
@@ -182,31 +196,31 @@ async function handleShare(ctx: any, userId: string, userName: string) {
 
     if (playback === null) {
       const msg = getRandomLine('selfNotLinked');
-      return ctx.replyWithHTML(msg);
+      return sendOrEdit(ctx, msg);
     }
 
     if (!playback.isPlaying) {
       const msg = getRandomLine('notListening', { name: userName });
-      return ctx.reply(msg);
+      return sendOrEdit(ctx, msg);
     }
 
-    // Reply with track URL and interactive button to add to playlist
+    // Reply/Edit with track URL and interactive button to add to playlist
     const msg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl });
     
     if (playback.trackUri) {
-      await ctx.reply(msg, Markup.inlineKeyboard([
+      await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
         [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
       ]));
     } else {
-      await ctx.reply(msg);
+      await sendOrEdit(ctx, msg);
     }
   } catch (err) {
     console.error(`Error in share for user ${userName}:`, err);
-    await ctx.reply(`⚠️ Sad! Ran into an error fetching Spotify track.`);
+    await sendOrEdit(ctx, `⚠️ Sad! Ran into an error fetching Spotify track.`);
   }
 }
 
-// Action: Share
+// Action: Share (Command menu fallback)
 bot.action('action_share', async (ctx) => {
   await ctx.answerCbQuery();
   const userId = String(ctx.from.id);
@@ -225,7 +239,7 @@ bot.command('share', async (ctx) => {
 async function handleVibes(ctx: any, senderId: string, senderName: string) {
   const otherUserId = allowedIds.find((id) => id !== senderId);
   if (!otherUserId) {
-    return ctx.reply('Error! No other friend registered to check vibes. Lonely! ♫');
+    return sendOrEdit(ctx, 'Error! No other friend registered to check vibes. Lonely! ♫');
   }
 
   const otherUserName = ALLOWED_USERS[otherUserId];
@@ -236,12 +250,12 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
 
     if (playback === null) {
       const msg = getRandomLine('userNotLinked', { name: otherUserName });
-      return ctx.reply(msg);
+      return sendOrEdit(ctx, msg);
     }
 
     if (!playback.isPlaying) {
       const msg = getRandomLine('otherNotListening', { name: otherUserName });
-      return ctx.reply(msg);
+      return sendOrEdit(ctx, msg);
     }
 
     // Check if listening to the same song
@@ -258,19 +272,19 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
     }) + sameSongText;
 
     if (playback.trackUri) {
-      await ctx.replyWithHTML(msg, Markup.inlineKeyboard([
+      await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
         [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
       ]));
     } else {
-      await ctx.replyWithHTML(msg);
+      await sendOrEdit(ctx, msg);
     }
   } catch (err) {
     console.error(`Error checking vibes for ${otherUserName}:`, err);
-    await ctx.reply(`⚠️ Sad! Could not fetch ${otherUserName}'s Spotify status.`);
+    await sendOrEdit(ctx, `⚠️ Sad! Could not fetch ${otherUserName}'s Spotify status.`);
   }
 }
 
-// Action: Vibes
+// Action: Vibes (Command menu fallback)
 bot.action('action_vibes', async (ctx) => {
   await ctx.answerCbQuery();
   const userId = String(ctx.from.id);
@@ -295,57 +309,39 @@ bot.on('inline_query', async (ctx) => {
   try {
     const results: any[] = [];
     
-    // 1. Fetch current user's playback (for Share Song)
-    const playback = await getCurrentlyPlaying(userId);
+    // Always provide static "Share My Song" and "Check Vibes" options in inline mode.
+    // This is instant, avoids timeout/rate limit issues, and always provides user interaction.
+    
+    // 1. "Share My Song" option
+    results.push({
+      type: 'article',
+      id: 'share_song_static',
+      title: '🎵 Share My Song',
+      description: 'Share what you are currently listening to on Spotify',
+      input_message_content: {
+        message_text: `🎵 <b>${userName}</b> is sharing their song...`,
+        parse_mode: 'HTML'
+      },
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback('Click to Reveal Song 🎶', `share_show_${userId}`)]
+      ]).reply_markup
+    });
 
-    if (playback === null) {
-      const msg = getRandomLine('selfNotLinked');
-      results.push({
-        type: 'article',
-        id: 'not_linked',
-        title: 'Spotify Not Linked',
-        description: 'You need to link your Spotify account to share music.',
-        input_message_content: { message_text: msg }
-      });
-    } else if (!playback.isPlaying) {
-      const msg = getRandomLine('notListening', { name: userName });
-      results.push({
-        type: 'article',
-        id: 'not_listening',
-        title: 'Not playing anything',
-        description: 'You are not listening to music right now.',
-        input_message_content: { message_text: msg }
-      });
-    } else {
-      const shareMsg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl });
-      results.push({
-        type: 'article',
-        id: 'share_song',
-        title: `🎵 Share: ${playback.trackName}`,
-        description: `by ${playback.artists}`,
-        input_message_content: {
-          message_text: shareMsg
-        },
-        reply_markup: playback.trackUri ? Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
-        ]).reply_markup : undefined
-      });
-    }
-
-    // 2. Add "Check Vibes" option (Check what the other user is listening to)
+    // 2. "Check Vibes" option
     const otherUserId = allowedIds.find((id) => id !== userId);
     if (otherUserId) {
       const otherUserName = ALLOWED_USERS[otherUserId];
       results.push({
         type: 'article',
-        id: 'check_vibes',
+        id: 'check_vibes_static',
         title: `👀 Check ${otherUserName}'s Vibes`,
         description: `See what ${otherUserName} is listening to right now`,
         input_message_content: {
-          message_text: `Checking vibes for ${otherUserName}... (Sent via inline)`
+          message_text: `👀 <b>${userName}</b> is checking <b>${otherUserName}</b>'s vibes...`,
+          parse_mode: 'HTML'
         },
         reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback(`Check ${otherUserName}'s Vibes Now`, 'action_vibes')]
+          [Markup.button.callback('Click to Check Vibes 🔍', `vibes_check_${userId}`)]
         ]).reply_markup
       });
     }
@@ -354,6 +350,22 @@ bot.on('inline_query', async (ctx) => {
   } catch (err) {
     console.error(`Error handling inline query for user ${userName}:`, err);
   }
+});
+
+// Action: Show shared song details (from inline query)
+bot.action(/^share_show_(.+)$/, async (ctx) => {
+  const senderId = ctx.match[1];
+  const senderName = ALLOWED_USERS[senderId] || 'Friend';
+  await ctx.answerCbQuery();
+  await handleShare(ctx, senderId, senderName);
+});
+
+// Action: Check vibes (from inline query)
+bot.action(/^vibes_check_(.+)$/, async (ctx) => {
+  const senderId = ctx.match[1];
+  const senderName = ALLOWED_USERS[senderId] || 'Friend';
+  await ctx.answerCbQuery();
+  await handleVibes(ctx, senderId, senderName);
 });
 
 // Action: Add to Playlist
@@ -602,12 +614,30 @@ app.get('/callback', async (req, res) => {
   }
 });
 
+// Command list registration
+async function setBotCommands() {
+  try {
+    await bot.telegram.setMyCommands([
+      { command: 'menu', description: 'Show main menu with Share/Vibes buttons' },
+      { command: 'share', description: 'Share your currently playing Spotify song' },
+      { command: 'vibes', description: 'Check what your friend is listening to' },
+      { command: 'login', description: 'Link your Spotify account' }
+    ]);
+    console.log('Bot commands registered successfully.');
+  } catch (err) {
+    console.error('Failed to register bot commands:', err);
+  }
+}
+
 // Start Express and Telegram Bot
 async function main() {
   // Start OAuth callback server
   app.listen(Number(port), '0.0.0.0', () => {
     console.log(`Spotify callback server listening on port ${port} (0.0.0.0)`);
   });
+
+  // Register commands
+  await setBotCommands();
 
   // Launch Telegram Bot (Long-Polling mode)
   bot.launch()
