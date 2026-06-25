@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   spotify-bot:
-    image: deertraps/rocky-telegram-bot:latest
+    image: rocky-telegram-bot:latest
     container_name: spotify-telegram-bot
     restart: unless-stopped
     ports:

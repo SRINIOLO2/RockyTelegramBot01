@@ -55,7 +55,7 @@ flowchart TD
 
 ### ⚠️ Docker Deployment Configuration
 > [!IMPORTANT]
-> **Always build Docker images with `--platform linux/amd64`** when deploying to the TrueNAS SputnikX server. The development machine is an Apple Silicon Mac Mini (ARM64), but the target host platform is x86_64 (Intel/AMD).
+> **Always build Docker images with `--platform linux/amd64`** when deploying to the target server. The development machine is an Apple Silicon Mac Mini (ARM64), but the target host platform is x86_64 (Intel/AMD).
 
 ### 💾 Persistent Storage
 Ensure the `data` directory is mapped as a volume in your deployment environment (e.g., `docker-compose.yml` mounts `./data:/app/data`). Otherwise, user authentication tokens will be lost whenever the container restarts.
@@ -95,8 +95,8 @@ USER_2_NAME=Bob
 
 ### 3. Running with Docker Compose
 ```bash
-# Build the image targeting SputnikX server compatibility
-docker build --platform linux/amd64 -t deertraps/rocky-telegram-bot:latest .
+# Build the image targeting target server compatibility
+docker build --platform linux/amd64 -t rocky-telegram-bot:latest .
 
 # Run the container
 docker-compose up -d
