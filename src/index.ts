@@ -285,6 +285,56 @@ bot.command('vibes', async (ctx) => {
   await handleVibes(ctx, userId, userName);
 });
 
+// Inline Query Handler
+bot.on('inline_query', async (ctx) => {
+  const userId = String(ctx.from.id);
+  const userName = ALLOWED_USERS[userId];
+
+  try {
+    const playback = await getCurrentlyPlaying(userId);
+
+    if (playback === null) {
+      const msg = getRandomLine('selfNotLinked');
+      return ctx.answerInlineQuery([{
+        type: 'article',
+        id: 'not_linked',
+        title: 'Spotify Not Linked',
+        description: 'You need to link your Spotify account to share music.',
+        input_message_content: { message_text: msg }
+      }], { cache_time: 0 });
+    }
+
+    if (!playback.isPlaying) {
+      const msg = getRandomLine('notListening', { name: userName });
+      return ctx.answerInlineQuery([{
+        type: 'article',
+        id: 'not_listening',
+        title: 'Not playing anything',
+        description: 'You are not listening to music right now.',
+        input_message_content: { message_text: msg }
+      }], { cache_time: 0 });
+    }
+
+    const shareMsg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl });
+    const results: any[] = [{
+      type: 'article',
+      id: 'share_song',
+      title: `Share: ${playback.trackName}`,
+      description: `by ${playback.artists}`,
+      input_message_content: {
+        message_text: shareMsg
+      },
+      reply_markup: playback.trackUri ? Markup.inlineKeyboard([
+        [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
+      ]).reply_markup : undefined
+    }];
+
+    await ctx.answerInlineQuery(results, { cache_time: 0 });
+  } catch (err) {
+    console.error(`Error handling inline query for user ${userName}:`, err);
+  }
+});
+
 // Action: Add to Playlist
 bot.action(/^add_pl_(.+)$/, async (ctx) => {
   const trackUri = ctx.match[1];
