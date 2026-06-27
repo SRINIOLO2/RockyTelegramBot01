@@ -53,12 +53,17 @@ flowchart TD
 
 ## 💡 Good to Know (For Developers & Future Agents)
 
-### ⚠️ Docker Deployment Configuration
-> [!IMPORTANT]
-> **Always build Docker images with `--platform linux/amd64`** when deploying to the target server. The development machine is an Apple Silicon Mac Mini (ARM64), but the target host platform is x86_64 (Intel/AMD).
+### ⛵ Server Deployment via Dockhand
+This bot is configured to deploy directly to the target server via the **Dockhand** app using its Git repository integration. 
+
+Because Dockhand pulls the source code directly and compiles the Docker container natively on your server, **you no longer need to worry about cross-compiling or architecture mismatches (ARM64 vs. AMD64)**! 
+
+*   **Repository URL:** Use your repository's HTTPS link.
+*   **Branch:** Set to `main` for production releases.
+*   **Environment Variables:** Since the `.env` file is git-ignored, all environment variables must be defined in the Stack settings in the Dockhand UI.
 
 ### 💾 Persistent Storage
-Ensure the `data` directory is mapped as a volume in your deployment environment (e.g., `docker-compose.yml` mounts `./data:/app/data`). Otherwise, user authentication tokens will be lost whenever the container restarts.
+Ensure the `data` directory is mapped as a volume in your deployment environment (e.g., `compose.yaml` mounts `./data:/app/data`). Otherwise, user authentication tokens will be lost whenever the container restarts.
 
 ### ⚙️ Setting Up Inline Mode
 To make inline query popups functional:
@@ -93,11 +98,18 @@ USER_2_ID=987654321
 USER_2_NAME=Bob
 ```
 
-### 3. Running with Docker Compose
+### 3. Running with Docker Compose locally
 ```bash
-# Build the image targeting target server compatibility
-docker build --platform linux/amd64 -t rocky-telegram-bot:latest .
+# Build the image locally
+docker compose build
 
 # Run the container
-docker-compose up -d
+docker compose up -d
 ```
+
+---
+
+## 🎨 Credits & Attribution
+- **Creator**: This application was created by AI (Gemini) using the **Antigravity 2.0** agentic coding platform.
+- **Designer Attribution**: Designed by a transgender person.
+- **Core Tools**: Built using Node.js, TypeScript, Telegraf, and the Spotify Web API.

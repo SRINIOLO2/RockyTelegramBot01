@@ -1,0 +1,22 @@
+services:
+  spotify-bot:
+    build: .
+    image: rocky-telegram-bot:latest
+    container_name: spotify-telegram-bot
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TELEGRAM_BOT_TOKEN
+      - SPOTIFY_CLIENT_ID
+      - SPOTIFY_CLIENT_SECRET
+      - SPOTIFY_REDIRECT_URI
+      - PORT
+      - USER_1_ID
+      - USER_1_NAME
+      - USER_2_ID
+      - USER_2_NAME
+      - SPOTIFY_PLAYLIST_ID
+
