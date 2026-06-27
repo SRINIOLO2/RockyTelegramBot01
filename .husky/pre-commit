@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Check if gitleaks is installed
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  [Security] Gitleaks is not installed. Skipping local secret scan."
+  echo "👉 To install it, run: brew install gitleaks (macOS) or scoop install gitleaks (Windows)"
+  exit 0
+fi
+
+# Run gitleaks on staged changes
+echo "🔍 [Security] Scanning staged changes for secrets..."
+gitleaks git --staged --verbose
