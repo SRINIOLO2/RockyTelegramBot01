@@ -5,8 +5,9 @@ services:
     container_name: spotify-telegram-bot
     restart: unless-stopped
     dns:
-      - 8.8.8.8
+      - 192.168.86.22
       - 1.1.1.1
+      - 1.0.0.1
     ports:
       - "${PORT:-3000}:3000"
     volumes:
