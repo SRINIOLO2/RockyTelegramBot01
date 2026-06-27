@@ -153,15 +153,20 @@ async function isPrivateContext(ctx: any): Promise<boolean> {
   }
 
   if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
-    const user1Id = process.env.USER_1_ID;
-    const user2Id = process.env.USER_2_ID;
+    const user1Id = allowedIds[0];
+    const user2Id = allowedIds[1];
     if (!user1Id || !user2Id) return false;
     try {
+      // Ensure the group is private/shared (exactly 3 members: Bot, User 1, User 2)
+      const memberCount = await ctx.telegram.getChatMemberCount(ctx.chat.id);
+      if (memberCount !== 3) return false;
+
       const m1 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user1Id));
       const m2 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user2Id));
       const allowed = ['creator', 'administrator', 'member', 'restricted'];
       return allowed.includes(m1.status) && allowed.includes(m2.status);
     } catch (err) {
+      console.error('Error verifying group members in isPrivateContext:', err);
       return false;
     }
   }
