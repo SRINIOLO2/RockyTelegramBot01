@@ -106,3 +106,10 @@ docker compose build
 # Run the container
 docker compose up -d
 ```
+
+---
+
+## 🎨 Credits & Attribution
+- **Creator**: This application was created by AI (Gemini) using the **Antigravity 2.0** agentic coding platform.
+- **Designer Attribution**: Designed by a transgender person.
+- **Core Tools**: Built using Node.js, TypeScript, Telegraf, and the Spotify Web API.

@@ -113,24 +113,84 @@ const ROCKY_LINES = {
   ]
 };
 
-function getRandomLine(type: keyof typeof ROCKY_LINES, replacements: Record<string, string> = {}): string {
+function getRandomLine(type: keyof typeof ROCKY_LINES, replacements: Record<string, string> = {}, isPrivate: boolean = true): string {
   const lines = ROCKY_LINES[type];
-  const line = lines[Math.floor(Math.random() * lines.length)];
+  let line = lines[Math.floor(Math.random() * lines.length)];
+
+  if (!isPrivate) {
+    // Avoid specific user names and make references generic
+    line = line.replace(/Friend\s+<b>{name}<\/b>/gi, 'Friend');
+    line = line.replace(/friend\s+<b>{name}<\/b>/gi, 'friend');
+    line = line.replace(/Friend\s+{name}/gi, 'Friend');
+    line = line.replace(/friend\s+{name}/gi, 'friend');
+    line = line.replace(/you\s+and\s+friend\s+{name}/gi, 'you and a friend');
+    line = line.replace(/you\s+and\s+{name}/gi, 'you and a friend');
+    line = line.replace(/and\s+{name}/gi, 'and a friend');
+    line = line.replace(/{name}/gi, 'friend');
+  }
+
   return Object.entries(replacements).reduce(
     (acc, [key, val]) => acc.replace(new RegExp(`{${key}}`, 'g'), val),
     line
   );
 }
 
+// Helper to check if bot is in a private/shared context (DMs with allowed users, or group with both users)
+async function isPrivateContext(ctx: any): Promise<boolean> {
+  // If this is an inline message callback query, ctx.chat is undefined,
+  // but ctx.callbackQuery.inline_message_id is defined.
+  if (ctx.callbackQuery?.inline_message_id) {
+    return false;
+  }
+
+  if (!ctx.chat) {
+    return false;
+  }
+
+  if (ctx.chat.type === 'private') {
+    const userId = String(ctx.chat.id);
+    return allowedIds.includes(userId);
+  }
+
+  if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
+    const user1Id = process.env.USER_1_ID;
+    const user2Id = process.env.USER_2_ID;
+    if (!user1Id || !user2Id) return false;
+    try {
+      const m1 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user1Id));
+      const m2 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user2Id));
+      const allowed = ['creator', 'administrator', 'member', 'restricted'];
+      return allowed.includes(m1.status) && allowed.includes(m2.status);
+    } catch (err) {
+      return false;
+    }
+  }
+
+  return false;
+}
+
 // Middleware: Restrict access to allowed users
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id ? String(ctx.from.id) : null;
-  
+
+  // Bypasses check for share_show_ query so anyone in external chats can click to reveal
+  const callbackQuery = ctx.callbackQuery as any;
+  if (callbackQuery?.data) {
+    const data = callbackQuery.data;
+    const shareMatch = data.match(/^share_show_(.+)$/);
+    if (shareMatch) {
+      const senderId = shareMatch[1];
+      if (ALLOWED_USERS[senderId]) {
+        return next();
+      }
+    }
+  }
+
   if (!userId || !ALLOWED_USERS[userId]) {
     console.log(`Blocked message from unauthorized user ID: ${userId || 'unknown'}`);
     return; // Silently ignore unauthorized users
   }
-  
+
   return next();
 });
 
@@ -141,20 +201,23 @@ bot.command(['start', 'menu'], async (ctx) => {
   const authUrl = getAuthorizationUrl(userId);
 
   const existingTokens = await getTokens(userId);
-  
+  const isPrivate = await isPrivateContext(ctx);
+
   if (existingTokens) {
-    const msg = getRandomLine('welcomeConnected', { name: userName });
+    const msg = getRandomLine('welcomeConnected', { name: userName }, isPrivate);
     const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
     const playlistUrl = playlistId ? `https://open.spotify.com/playlist/${playlistId}` : null;
-    
+
     const keyboard = [
       [Markup.button.callback('🎵 Share My Song', 'action_share')],
-      [Markup.button.callback('👀 Check Vibes', 'action_vibes')],
-      ...(playlistUrl ? [[Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]] : [])
+      ...(isPrivate ? [
+        [Markup.button.callback('👀 Check Vibes', 'action_vibes')],
+        ...(playlistUrl ? [[Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]] : [])
+      ] : [])
     ];
     await ctx.reply(msg, Markup.inlineKeyboard(keyboard));
   } else {
-    const statusMessage = getRandomLine('welcomeNotConnected', { name: userName });
+    const statusMessage = getRandomLine('welcomeNotConnected', { name: userName }, isPrivate);
     await ctx.replyWithHTML(
       `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
       { link_preview_options: { is_disabled: true } }
@@ -169,10 +232,11 @@ bot.command('login', async (ctx) => {
   const authUrl = getAuthorizationUrl(userId);
 
   const existingTokens = await getTokens(userId);
-  
+  const isPrivate = await isPrivateContext(ctx);
+
   const statusMessage = existingTokens 
-    ? getRandomLine('welcomeAlreadyConnectedLink', { name: userName })
-    : getRandomLine('welcomeNotConnected', { name: userName });
+    ? getRandomLine('welcomeAlreadyConnectedLink', { name: userName }, isPrivate)
+    : getRandomLine('welcomeNotConnected', { name: userName }, isPrivate);
 
   await ctx.replyWithHTML(
     `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
@@ -198,21 +262,22 @@ async function sendOrEdit(ctx: any, text: string, extra: any = {}) {
 async function handleShare(ctx: any, userId: string, userName: string) {
   try {
     const playback = await getCurrentlyPlaying(userId);
+    const isPrivate = await isPrivateContext(ctx);
 
     if (playback === null) {
-      const msg = getRandomLine('selfNotLinked');
+      const msg = getRandomLine('selfNotLinked', {}, isPrivate);
       return sendOrEdit(ctx, msg);
     }
 
     if (!playback.isPlaying) {
-      const msg = getRandomLine('notListening', { name: userName });
+      const msg = getRandomLine('notListening', { name: userName }, isPrivate);
       return sendOrEdit(ctx, msg);
     }
 
     // Reply/Edit with track URL and interactive button to add to playlist
-    const msg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl });
+    const msg = getRandomLine('shareSuccess', { name: userName, url: playback.spotifyUrl }, isPrivate);
     
-    if (playback.trackUri) {
+    if (playback.trackUri && isPrivate) {
       await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
         [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
       ]));
@@ -242,6 +307,11 @@ bot.command('share', async (ctx) => {
 
 // Helper for "Vibes"
 async function handleVibes(ctx: any, senderId: string, senderName: string) {
+  const isPrivate = await isPrivateContext(ctx);
+  if (!isPrivate) {
+    return sendOrEdit(ctx, '⚠️ Sad! Checking vibes is only allowed in private chats between you and your friend. ♫');
+  }
+
   const otherUserId = allowedIds.find((id) => id !== senderId);
   if (!otherUserId) {
     return sendOrEdit(ctx, 'Error! No other friend registered to check vibes. Lonely! ♫');
@@ -254,19 +324,19 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
     const myPlayback = await getCurrentlyPlaying(senderId);
 
     if (playback === null) {
-      const msg = getRandomLine('userNotLinked', { name: otherUserName });
+      const msg = getRandomLine('userNotLinked', { name: otherUserName }, isPrivate);
       return sendOrEdit(ctx, msg);
     }
 
     if (!playback.isPlaying) {
-      const msg = getRandomLine('otherNotListening', { name: otherUserName });
+      const msg = getRandomLine('otherNotListening', { name: otherUserName }, isPrivate);
       return sendOrEdit(ctx, msg);
     }
 
     // Check if listening to the same song
     let sameSongText = '';
     if (myPlayback?.isPlaying && playback.trackUri && myPlayback.trackUri === playback.trackUri) {
-      sameSongText = getRandomLine('sameSong', { name: otherUserName });
+      sameSongText = getRandomLine('sameSong', { name: otherUserName }, isPrivate);
     }
 
     const msg = getRandomLine('vibesSuccess', {
@@ -274,7 +344,7 @@ async function handleVibes(ctx: any, senderId: string, senderName: string) {
       track: playback.trackName,
       artists: playback.artists,
       url: playback.spotifyUrl
-    }) + sameSongText;
+    }, isPrivate) + sameSongText;
 
     if (playback.trackUri) {
       await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
@@ -306,6 +376,11 @@ bot.command('vibes', async (ctx) => {
 
 // Command: /playlist
 bot.command('playlist', async (ctx) => {
+  const isPrivate = await isPrivateContext(ctx);
+  if (!isPrivate) {
+    return ctx.reply('⚠️ Sad! The shared playlist can only be accessed in private/shared chats. ♫');
+  }
+
   const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
   if (!playlistId) {
     return ctx.reply('⚠️ Error: SPOTIFY_PLAYLIST_ID is missing from environment variables!');
@@ -317,7 +392,7 @@ bot.command('playlist', async (ctx) => {
     `Here is the link to our shared Spotify playlist where all shared songs are saved. Yes, yes, yes! ♪\n\n` +
     `💡 <i>Callout: You can tap the button below to open the playlist directly in Spotify! Save it to your Spotify library to easily access it anytime! ♫</i>`,
     Markup.inlineKeyboard([
-      [Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]
+      [Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]
     ])
   );
 });
@@ -410,7 +485,7 @@ bot.action(/^add_pl_(.+)$/, async (ctx) => {
     try {
       await ctx.editMessageReplyMarkup(
         Markup.inlineKeyboard([
-          [Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]
+          [Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]
         ]).reply_markup
       );
     } catch (editErr) {
@@ -660,9 +735,13 @@ async function setBotCommands() {
       { command: 'playlist', description: 'Get the link to the shared Spotify playlist' },
       { command: 'login', description: 'Link your Spotify account' }
     ]);
-    console.log('Bot commands registered successfully.');
+    
+    await bot.telegram.setMyDescription("A private Spotify-integrated Telegram bot. Designed by a transgender person. Made with Antigravity 2.0, Gemini, and Telegraf.");
+    await bot.telegram.setMyShortDescription("Private music sharing bot. Designed by a transgender person. Made with Antigravity 2.0 & Gemini.");
+    
+    console.log('Bot commands and descriptions registered successfully.');
   } catch (err) {
-    console.error('Failed to register bot commands:', err);
+    console.error('Failed to register bot commands or descriptions:', err);
   }
 }
 
