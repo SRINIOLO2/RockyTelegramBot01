@@ -144,10 +144,15 @@ bot.command(['start', 'menu'], async (ctx) => {
   
   if (existingTokens) {
     const msg = getRandomLine('welcomeConnected', { name: userName });
-    await ctx.reply(msg, Markup.inlineKeyboard([
+    const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
+    const playlistUrl = playlistId ? `https://open.spotify.com/playlist/${playlistId}` : null;
+    
+    const keyboard = [
       [Markup.button.callback('🎵 Share My Song', 'action_share')],
-      [Markup.button.callback('👀 Check Vibes', 'action_vibes')]
-    ]));
+      [Markup.button.callback('👀 Check Vibes', 'action_vibes')],
+      ...(playlistUrl ? [[Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]] : [])
+    ];
+    await ctx.reply(msg, Markup.inlineKeyboard(keyboard));
   } else {
     const statusMessage = getRandomLine('welcomeNotConnected', { name: userName });
     await ctx.replyWithHTML(
@@ -299,6 +304,24 @@ bot.command('vibes', async (ctx) => {
   await handleVibes(ctx, userId, userName);
 });
 
+// Command: /playlist
+bot.command('playlist', async (ctx) => {
+  const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
+  if (!playlistId) {
+    return ctx.reply('⚠️ Error: SPOTIFY_PLAYLIST_ID is missing from environment variables!');
+  }
+  const playlistUrl = `https://open.spotify.com/playlist/${playlistId}`;
+  
+  await ctx.replyWithHTML(
+    `🎶 <b>Rocky's Shared Playlist</b>\n\n` +
+    `Here is the link to our shared Spotify playlist where all shared songs are saved. Yes, yes, yes! ♪\n\n` +
+    `💡 <i>Callout: You can tap the button below to open the playlist directly in Spotify! Save it to your Spotify library to easily access it anytime! ♫</i>`,
+    Markup.inlineKeyboard([
+      [Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]
+    ])
+  );
+});
+
 // Inline Query Handler
 bot.on('inline_query', async (ctx) => {
   const userId = String(ctx.from.id);
@@ -374,12 +397,25 @@ bot.action(/^add_pl_(.+)$/, async (ctx) => {
   const userId = String(ctx.from.id);
 
   try {
-    if (!process.env.SPOTIFY_PLAYLIST_ID) {
+    const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
+    if (!playlistId) {
       return ctx.answerCbQuery('Error: SPOTIFY_PLAYLIST_ID is missing from .env! Bad!', { show_alert: true });
     }
     await addTrackToPlaylist(userId, trackUri);
     const alertMsg = getRandomLine('playlistSuccess');
     await ctx.answerCbQuery(alertMsg, { show_alert: false });
+
+    // Update the inline keyboard to show a link to the playlist instead of the Add button
+    const playlistUrl = `https://open.spotify.com/playlist/${playlistId}`;
+    try {
+      await ctx.editMessageReplyMarkup(
+        Markup.inlineKeyboard([
+          [Markup.button.url('🟢 Open Rocky\'s Playlist', playlistUrl)]
+        ]).reply_markup
+      );
+    } catch (editErr) {
+      console.error('Failed to edit reply markup after adding to playlist:', editErr);
+    }
   } catch (err: any) {
     console.error('Error adding track to playlist:', err);
     const errMsg = getRandomLine('playlistError');
@@ -621,6 +657,7 @@ async function setBotCommands() {
       { command: 'menu', description: 'Show main menu with Share/Vibes buttons' },
       { command: 'share', description: 'Share your currently playing Spotify song' },
       { command: 'vibes', description: 'Check what your friend is listening to' },
+      { command: 'playlist', description: 'Get the link to the shared Spotify playlist' },
       { command: 'login', description: 'Link your Spotify account' }
     ]);
     console.log('Bot commands registered successfully.');
