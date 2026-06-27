@@ -140,31 +140,49 @@ async function isPrivateContext(ctx: any): Promise<boolean> {
   // If this is an inline message callback query, ctx.chat is undefined,
   // but ctx.callbackQuery.inline_message_id is defined.
   if (ctx.callbackQuery?.inline_message_id) {
+    console.log('isPrivateContext: false (inline message callback)');
     return false;
   }
 
   if (!ctx.chat) {
+    console.log('isPrivateContext: false (no chat context)');
     return false;
   }
 
+  console.log(`isPrivateContext: checking chat. type=${ctx.chat.type}, id=${ctx.chat.id}`);
+
   if (ctx.chat.type === 'private') {
     const userId = String(ctx.chat.id);
-    return allowedIds.includes(userId);
+    const isAllowed = allowedIds.includes(userId);
+    console.log(`isPrivateContext: private chat with user ${userId}. isAllowed=${isAllowed}`);
+    return isAllowed;
   }
 
   if (ctx.chat.type === 'group' || ctx.chat.type === 'supergroup') {
     const user1Id = allowedIds[0];
     const user2Id = allowedIds[1];
-    if (!user1Id || !user2Id) return false;
+    if (!user1Id || !user2Id) {
+      console.log('isPrivateContext: false (allowedIds does not have both users configured)');
+      return false;
+    }
     try {
       // Ensure the group is private/shared (exactly 3 members: Bot, User 1, User 2)
       const memberCount = await ctx.telegram.getChatMemberCount(ctx.chat.id);
-      if (memberCount !== 3) return false;
+      console.log(`isPrivateContext: group/supergroup memberCount=${memberCount}`);
+      if (memberCount !== 3) {
+        console.log(`isPrivateContext: false (member count ${memberCount} is not exactly 3)`);
+        return false;
+      }
 
       const m1 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user1Id));
       const m2 = await ctx.telegram.getChatMember(ctx.chat.id, Number(user2Id));
+      console.log(`isPrivateContext: User 1 (${user1Id}) status=${m1.status}, User 2 (${user2Id}) status=${m2.status}`);
       const allowed = ['creator', 'administrator', 'member', 'restricted'];
-      return allowed.includes(m1.status) && allowed.includes(m2.status);
+      const isM1Allowed = allowed.includes(m1.status);
+      const isM2Allowed = allowed.includes(m2.status);
+      const isBothAllowed = isM1Allowed && isM2Allowed;
+      console.log(`isPrivateContext: isM1Allowed=${isM1Allowed}, isM2Allowed=${isM2Allowed}. Final result=${isBothAllowed}`);
+      return isBothAllowed;
     } catch (err) {
       console.error('Error verifying group members in isPrivateContext:', err);
       return false;
