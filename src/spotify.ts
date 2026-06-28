@@ -1,12 +1,10 @@
 import SpotifyWebApi from 'spotify-web-api-node';
 import { getTokens, saveTokens, UserTokens } from './db';
 
-// Required scopes to check currently playing status and manage playlists
+// Required scopes to check currently playing status
 export const SPOTIFY_SCOPES = [
   'user-read-currently-playing', 
-  'user-read-playback-state',
-  'playlist-modify-public',
-  'playlist-modify-private'
+  'user-read-playback-state'
 ];
 
 /**
@@ -148,22 +146,4 @@ export async function getCurrentlyPlaying(telegramId: string): Promise<PlaybackS
   }
 }
 
-/**
- * Adds a track to a shared Spotify playlist.
- */
-export async function addTrackToPlaylist(telegramId: string, trackUri: string): Promise<void> {
-  const spotifyApi = await getAuthenticatedSpotifyClient(telegramId);
-  if (!spotifyApi) return;
 
-  const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
-  if (!playlistId) {
-    throw new Error('SPOTIFY_PLAYLIST_ID not configured in .env');
-  }
-
-  try {
-    await spotifyApi.addTracksToPlaylist(playlistId, [trackUri]);
-  } catch (err) {
-    console.error(`Error adding track to playlist for user ${telegramId}:`, err);
-    throw err;
-  }
-}

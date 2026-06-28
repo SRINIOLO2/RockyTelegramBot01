@@ -16,6 +16,9 @@ interface DbSchema {
 const DB_DIR = path.join(__dirname, '..', 'data');
 const DB_FILE = path.join(DB_DIR, 'tokens.json');
 
+// In-memory cache to eliminate disk I/O latency on reads
+let memoryDb: DbSchema | null = null;
+
 /**
  * Ensures the database directory and file exist.
  */
@@ -38,10 +41,14 @@ async function ensureDbExists(): Promise<void> {
  * Reads the database file.
  */
 async function readDb(): Promise<DbSchema> {
+  if (memoryDb) {
+    return memoryDb;
+  }
   await ensureDbExists();
   try {
     const data = await fs.readFile(DB_FILE, 'utf-8');
-    return JSON.parse(data) as DbSchema;
+    memoryDb = JSON.parse(data) as DbSchema;
+    return memoryDb;
   } catch (err) {
     console.error('Error reading token database, returning empty schema:', err);
     return { users: {} };
@@ -52,6 +59,7 @@ async function readDb(): Promise<DbSchema> {
  * Writes to the database file.
  */
 async function writeDb(data: DbSchema): Promise<void> {
+  memoryDb = data; // Sync in-memory cache
   await ensureDbExists();
   const tempFile = `${DB_FILE}.tmp`;
   await fs.writeFile(tempFile, JSON.stringify(data, null, 2), 'utf-8');

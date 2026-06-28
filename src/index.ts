@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 import express from 'express';
 import { Telegraf, Markup } from 'telegraf';
-import { getCurrentlyPlaying, getAuthorizationUrl, handleAuthorizationCode, addTrackToPlaylist } from './spotify';
+import { getCurrentlyPlaying, getAuthorizationUrl, handleAuthorizationCode } from './spotify';
 import { getTokens } from './db';
 
 // Load environment variables
@@ -32,111 +32,6 @@ if (allowedIds.length === 0) {
 // Initialize Telegraf Bot
 const bot = new Telegraf(token);
 
-const ROCKY_LINES = {
-  welcomeConnected: [
-    "Amaze! Friend {name}! You are ready to share music. Yes, yes, yes! ♪ ♫\nWhat do you want to do? Question?",
-    "Happy! Friend {name} is here! Music is good, yes? Yes! ♪\nWhat do you want to do? Question?",
-    "Friend {name}! We share music, we learn! Good, good, good! ♫\nWhat do you want to do? Question?",
-    "Amaze, friend {name}! You connected! Now we listen together, yes? Yes! ♪ ♫\nWhat do you want to do? Question?"
-  ],
-  welcomeNotConnected: [
-    "Welcome Friend {name}! Need Spotify to share music! Authorize below, please? ♪\n\n",
-    "Hello Friend {name}! Cannot hear music without Spotify! Click link, click link! ♫\n\n",
-    "Friend {name}! Setup Spotify first, yes? Yes! Then we share good sounds! ♪\n\n",
-    "Welcome! To share human music, must connect Spotify! You do this now? Question? ♪\n\n"
-  ],
-  notListening: [
-    "Friend {name}, you are not listening to music right now! Bad! ♫",
-    "Silence! Friend {name} plays nothing. Why? Question? ♪",
-    "No sound! Friend {name} is not playing Spotify. Bad, bad, bad! ♫",
-    "You do not listen to music, friend {name}. I am leak! Put some sound, yes? ♪"
-  ],
-  otherNotListening: [
-    "Sad! Friend {name} is not listening to anything right now. ♫",
-    "Friend {name} has quiet room. No music! Sad! ♪",
-    "No music from friend {name}! They must be sleeping or working, yes? ♪ ♫",
-    "Quiet! Friend {name} is not playing Spotify. I wait! ♫"
-  ],
-  shareSuccess: [
-    "Amaze! Friend {name} is listening to:\n{url}\n#music ♪ ♫",
-    "Good, good, good! Friend {name} shares sound:\n{url}\n#music ♪",
-    "I hear this! Friend {name} plays:\n{url}\n#music ♫",
-    "Yes, yes, yes! Listen to friend {name} music:\n{url}\n#music ♪ ♫"
-  ],
-  vibesSuccess: [
-    "🎵 Friend <b>{name}</b> is listening to:\n<b>{track}</b> by <i>{artists}</i>\n\n{url}",
-    "🎵 Good vibes! Friend <b>{name}</b> plays:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♪",
-    "🎵 Listen! Friend <b>{name}</b> is listening:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♫",
-    "🎵 Beautiful sound! Friend <b>{name}</b> listening to:\n<b>{track}</b> by <i>{artists}</i>\n\n{url} ♪ ♫"
-  ],
-  sameSong: [
-    "\n\n<b>AMAZE! AMAZE! AMAZE!</b>\nYou and {name} are listening to the EXACT SAME SONG! Yes, yes, yes! ♪ ♫",
-    "\n\n<b>YES, YES, YES!</b>\nSame song! You and {name} have same brain! Amaze! ♪ ♫",
-    "\n\n<b>HEAR THIS!</b>\nYou and friend {name} listen to same thing at same time! Match! Good, good, good! ♪",
-    "\n\n<b>AMAZE!</b>\nDual listening! Same sound waves for you and {name}! Yes! ♫"
-  ],
-  playlistSuccess: [
-    "Amaze! Song added to shared playlist! Yes, yes, yes! ♪",
-    "Added! Playlist is bigger now! Good, good, good! ♫",
-    "Save to memory! Song is in playlist! Yes! ♪",
-    "Amaze! I keep this song forever in shared playlist! Yes, yes, yes! ♪ ♫"
-  ],
-  playlistError: [
-    "Error adding track! Do you have playlist-modify permissions? Bad! ♫",
-    "Sad! Cannot write to playlist! Bad, bad, bad! ♪",
-    "Failure! Playlist reject song. Broken? Question? ♫",
-    "Cannot add! Check Spotify rules, friend. Sad! ♪"
-  ],
-  welcomeAlreadyConnectedLink: [
-    "Amaze! Friend {name}! Spotify is already connected! But if you want to connect different account, use link below, please? ♪\n\n",
-    "Friend {name}! You have link to Spotify already! Yes! But if link is broken or you want new account, click below! ♫\n\n",
-    "Yes, yes, yes! Already connected, friend {name}! Want to re-authenticate or use other Spotify? Use this link: ♪\n\n",
-    "Amaze! Connection exists! If you must change accounts or refresh, click the button below, yes? Yes! ♫\n\n"
-  ],
-  connectionSuccess: [
-    "✅ <b>Amaze! Spotify Connected!</b>\nYour Spotify account is now linked! Yes, yes, yes! ♪ ♫\nUse /menu to start sharing!",
-    "✅ <b>Happy! Connection successful!</b>\nSpotify is linked to bot! We hear music now! Good, good, good! ♪\nUse /menu to start!",
-    "✅ <b>Yes, yes, yes! Spotify connected!</b>\nLinked successfully, friend! Now we can see vibes! ♫\nUse /menu to start!",
-    "✅ <b>Amaze! Linked!</b>\nSpotify account is connected! Share sound now! Yes! ♪ ♫\nUse /menu to start!"
-  ],
-  userNotLinked: [
-    "Sad! Friend {name} has not linked Spotify account yet. Bad! They must send /login to bot! ♪",
-    "Silence! Friend {name} has no Spotify connection. They must use /login, yes? Yes! ♫",
-    "No connection! Friend {name} needs to authorize Spotify. Tell them to send /login, please! ♪ ♫",
-    "Cannot check vibes! Friend {name} has not connected Spotify. Sad! They must run /login! ♪"
-  ],
-  selfNotLinked: [
-    "❌ <b>Sad! Spotify not connected.</b>\nFriend, you must link account first! Click /login, please? ♪",
-    "❌ <b>No Spotify!</b>\nCannot check music without connection! Run /login to fix, yes? ♫",
-    "❌ <b>Failure!</b>\nYour Spotify is not linked to bot! Run /login first! Bad, bad, bad! ♪ ♫",
-    "❌ <b>Silence!</b>\nYou have not connected Spotify! Use /login to add connection, please? ♪"
-  ]
-};
-
-function getRandomLine(type: keyof typeof ROCKY_LINES, replacements: Record<string, string> = {}, isPrivate: boolean = true): string {
-  const lines = ROCKY_LINES[type];
-  let line = lines[Math.floor(Math.random() * lines.length)];
-
-  if (!isPrivate) {
-    // Avoid specific user names and make references generic
-    line = line.replace(/Friend\s+<b>{name}<\/b>/gi, 'Friend');
-    line = line.replace(/friend\s+<b>{name}<\/b>/gi, 'friend');
-    line = line.replace(/Friend\s+{name}/gi, 'Friend');
-    line = line.replace(/friend\s+{name}/gi, 'friend');
-    line = line.replace(/you\s+and\s+friend\s+{name}/gi, 'you and a friend');
-    line = line.replace(/you\s+and\s+{name}/gi, 'you and a friend');
-    line = line.replace(/and\s+{name}/gi, 'and a friend');
-    line = line.replace(/{name}/gi, 'friend');
-  }
-
-  return Object.entries(replacements).reduce(
-    (acc, [key, val]) => acc.replace(new RegExp(`{${key}}`, 'g'), val),
-    line
-  );
-}
-
-
-
 // Middleware: Restrict access to allowed users
 bot.use(async (ctx, next) => {
   const userId = ctx.from?.id ? String(ctx.from.id) : null;
@@ -165,26 +60,19 @@ bot.use(async (ctx, next) => {
 // Command: /start or /menu
 bot.command(['start', 'menu'], async (ctx) => {
   const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
   const authUrl = getAuthorizationUrl(userId);
 
   const existingTokens = await getTokens(userId);
 
   if (existingTokens) {
-    const msg = getRandomLine('welcomeConnected', { name: userName }, true);
-    const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
-    const playlistUrl = playlistId ? `https://open.spotify.com/playlist/${playlistId}` : null;
-
+    const msg = `🔌 Spotify is connected.`;
     const keyboard = [
-      [Markup.button.callback('🎵 Share My Song', 'action_share')],
-      [Markup.button.callback('👀 Check Vibes', 'action_vibes')],
-      ...(playlistUrl ? [[Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]] : [])
+      [Markup.button.callback('🎵 Share What\'s Playing', 'action_share')]
     ];
     await ctx.reply(msg, Markup.inlineKeyboard(keyboard));
   } else {
-    const statusMessage = getRandomLine('welcomeNotConnected', { name: userName }, true);
     await ctx.replyWithHTML(
-      `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
+      `🔌 Spotify is not connected.\n\n<a href="${authUrl}"><b>Connect Spotify</b></a>`,
       { link_preview_options: { is_disabled: true } }
     );
   }
@@ -193,17 +81,10 @@ bot.command(['start', 'menu'], async (ctx) => {
 // Command: /login
 bot.command('login', async (ctx) => {
   const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
   const authUrl = getAuthorizationUrl(userId);
 
-  const existingTokens = await getTokens(userId);
-
-  const statusMessage = existingTokens 
-    ? getRandomLine('welcomeAlreadyConnectedLink', { name: userName }, true)
-    : getRandomLine('welcomeNotConnected', { name: userName }, true);
-
   await ctx.replyWithHTML(
-    `${statusMessage}🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>\n\n<i>Note: Make sure to authorize the app. Once completed, this page will redirect you back.</i>`,
+    `🔌 <a href="${authUrl}"><b>Connect Spotify</b></a>`,
     { link_preview_options: { is_disabled: true } }
   );
 });
@@ -222,49 +103,25 @@ async function sendOrEdit(ctx: any, text: string, extra: any = {}) {
   await ctx.reply(text, options);
 }
 
-// Helper to initiate song sharing with privacy options
-async function promptShare(ctx: any, userId: string, userName: string) {
+// Helper for "Share"
+async function handleShare(ctx: any, userId: string) {
   try {
     const playback = await getCurrentlyPlaying(userId);
 
     if (playback === null) {
-      const msg = getRandomLine('selfNotLinked', {}, false);
-      return sendOrEdit(ctx, msg);
+      return sendOrEdit(ctx, '❌ Spotify is not linked to this bot. Use /login to link account.');
     }
 
     if (!playback.isPlaying) {
-      const msg = getRandomLine('notListening', { name: userName }, true);
-      return sendOrEdit(ctx, msg);
+      return sendOrEdit(ctx, '❌ You are not listening to music on Spotify right now.');
     }
 
-    // Extract track ID from URI or URL
-    let trackId = '';
-    if (playback.trackUri) {
-      const parts = playback.trackUri.split(':');
-      trackId = parts[parts.length - 1];
-    } else if (playback.spotifyUrl) {
-      const parts = playback.spotifyUrl.split('/');
-      trackId = parts[parts.length - 1].split('?')[0];
-    }
-
-    if (!trackId) {
-      return sendOrEdit(ctx, '⚠️ Error identifying Spotify track ID.');
-    }
-
-    const otherUserId = allowedIds.find((id) => id !== userId);
-    const otherUserName = otherUserId ? ALLOWED_USERS[otherUserId] : 'Friend';
-
-    const keyboard = [
-      [
-        Markup.button.callback(`🎵 Share with ${otherUserName}`, `share_pv_${userId}_${trackId}`),
-        Markup.button.callback('🌐 Share with Others', `share_pb_${userId}_${trackId}`)
-      ]
-    ];
-
-    await sendOrEdit(ctx, `🎵 <b>Ready to share!</b> Choose destination:`, Markup.inlineKeyboard(keyboard));
+    // Format clean hyperlinked song title to hide link bloat but keep embed
+    const msg = `🎵 <b>Currently playing:</b>\n<a href="${playback.spotifyUrl}"><b>${playback.trackName}</b></a> by <i>${playback.artists}</i>`;
+    await sendOrEdit(ctx, msg);
   } catch (err) {
-    console.error(`Error in promptShare for user ${userName}:`, err);
-    await sendOrEdit(ctx, `⚠️ Sad! Ran into an error fetching Spotify track.`);
+    console.error(`Error in share for user ${userId}:`, err);
+    await sendOrEdit(ctx, `⚠️ Error fetching Spotify playback status.`);
   }
 }
 
@@ -272,127 +129,13 @@ async function promptShare(ctx: any, userId: string, userName: string) {
 bot.action('action_share', async (ctx) => {
   await ctx.answerCbQuery();
   const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
-  await promptShare(ctx, userId, userName);
+  await handleShare(ctx, userId);
 });
 
 // Command: /share
 bot.command('share', async (ctx) => {
   const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
-  await promptShare(ctx, userId, userName);
-});
-
-// Action: Confirm Share (Private or Public)
-bot.action(/^share_(pv|pb)_(.+)_(.+)$/, async (ctx) => {
-  const mode = ctx.match[1]; // "pv" or "pb"
-  const senderId = ctx.match[2];
-  const trackId = ctx.match[3];
-  const clickerId = String(ctx.from.id);
-
-  if (clickerId !== senderId) {
-    return ctx.answerCbQuery('Only the person sharing can choose the destination!', { show_alert: true });
-  }
-
-  await ctx.answerCbQuery();
-
-  const senderName = ALLOWED_USERS[senderId] || 'Friend';
-  const isPrivate = mode === 'pv';
-  const spotifyUrl = `https://open.spotify.com/track/${trackId}`;
-
-  const msg = getRandomLine('shareSuccess', { name: senderName, url: spotifyUrl }, isPrivate);
-
-  if (isPrivate) {
-    await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
-      [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_spotify:track:${trackId}`)]
-    ]));
-  } else {
-    await sendOrEdit(ctx, msg);
-  }
-});
-
-// Helper for "Vibes"
-async function handleVibes(ctx: any, senderId: string, senderName: string) {
-  const otherUserId = allowedIds.find((id) => id !== senderId);
-  if (!otherUserId) {
-    return sendOrEdit(ctx, 'Error! No other friend registered to check vibes. Lonely! ♫');
-  }
-
-  const otherUserName = ALLOWED_USERS[otherUserId];
-
-  try {
-    const playback = await getCurrentlyPlaying(otherUserId);
-    const myPlayback = await getCurrentlyPlaying(senderId);
-
-    if (playback === null) {
-      const msg = getRandomLine('userNotLinked', { name: otherUserName }, true);
-      return sendOrEdit(ctx, msg);
-    }
-
-    if (!playback.isPlaying) {
-      const msg = getRandomLine('otherNotListening', { name: otherUserName }, true);
-      return sendOrEdit(ctx, msg);
-    }
-
-    // Check if listening to the same song
-    let sameSongText = '';
-    if (myPlayback?.isPlaying && playback.trackUri && myPlayback.trackUri === playback.trackUri) {
-      sameSongText = getRandomLine('sameSong', { name: otherUserName }, true);
-    }
-
-    const privacyAdvisory = '\n\n<i>🔒 Note: You should only check vibes with your friend\'s knowledge or in a private secure chat.</i>';
-
-    const msg = getRandomLine('vibesSuccess', {
-      name: otherUserName,
-      track: playback.trackName,
-      artists: playback.artists,
-      url: playback.spotifyUrl
-    }, true) + sameSongText + privacyAdvisory;
-
-    if (playback.trackUri) {
-      await sendOrEdit(ctx, msg, Markup.inlineKeyboard([
-        [Markup.button.callback('➕ Add to Rocky\'s Playlist', `add_pl_${playback.trackUri}`)]
-      ]));
-    } else {
-      await sendOrEdit(ctx, msg);
-    }
-  } catch (err) {
-    console.error(`Error checking vibes for ${otherUserName}:`, err);
-    await sendOrEdit(ctx, `⚠️ Sad! Could not fetch ${otherUserName}'s Spotify status.`);
-  }
-}
-
-// Action: Vibes (Command menu fallback)
-bot.action('action_vibes', async (ctx) => {
-  await ctx.answerCbQuery();
-  const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
-  await handleVibes(ctx, userId, userName);
-});
-
-// Command: /vibes
-bot.command('vibes', async (ctx) => {
-  const userId = String(ctx.from.id);
-  const userName = ALLOWED_USERS[userId];
-  await handleVibes(ctx, userId, userName);
-});
-
-// Command: /playlist
-bot.command('playlist', async (ctx) => {
-  const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
-  if (!playlistId) {
-    return ctx.reply('⚠️ Error: SPOTIFY_PLAYLIST_ID is missing from environment variables!');
-  }
-  const playlistUrl = `https://open.spotify.com/playlist/${playlistId}`;
-  
-  await ctx.replyWithHTML(
-    `🎶 <b>Rocky's Shared Playlist</b>\n\n` +
-    `Here is the link to our shared Spotify playlist where all shared songs are saved. Yes, yes, yes! ♪\n\n` +
-    `💡 <i>Callout: You can tap the button below to open the playlist directly in Spotify! Save it to your Spotify library to easily access it anytime! ♫</i>`,
-    Markup.inlineKeyboard([
-      [Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]
-    ])
-  );
+  await handleShare(ctx, userId);
 });
 
 // Inline Query Handler
@@ -403,44 +146,19 @@ bot.on('inline_query', async (ctx) => {
   console.log(`Received inline query from ${userName || 'unknown user'} (${userId})`);
 
   try {
-    const results: any[] = [];
-    
-    // Always provide static "Share My Song" and "Check Vibes" options in inline mode.
-    // This is instant, avoids timeout/rate limit issues, and always provides user interaction.
-    
-    // 1. "Share My Song" option
-    results.push({
-      type: 'article',
+    const results = [{
+      type: 'article' as const,
       id: 'share_song_static',
-      title: '🎵 Share My Song',
+      title: '🎵 Share What\'s Playing',
       description: 'Share what you are currently listening to on Spotify',
       input_message_content: {
-        message_text: `🎵 <b>${userName}</b> is sharing their song...`,
-        parse_mode: 'HTML'
+        message_text: `🎵 Sharing currently playing track...`,
+        parse_mode: 'HTML' as const
       },
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.callback('Click to Reveal Song 🎶', `share_show_${userId}`)]
       ]).reply_markup
-    });
-
-    // 2. "Check Vibes" option
-    const otherUserId = allowedIds.find((id) => id !== userId);
-    if (otherUserId) {
-      const otherUserName = ALLOWED_USERS[otherUserId];
-      results.push({
-        type: 'article',
-        id: 'check_vibes_static',
-        title: `👀 Check ${otherUserName}'s Vibes`,
-        description: `See what ${otherUserName} is listening to right now`,
-        input_message_content: {
-          message_text: `👀 <b>${userName}</b> is checking <b>${otherUserName}</b>'s vibes...`,
-          parse_mode: 'HTML'
-        },
-        reply_markup: Markup.inlineKeyboard([
-          [Markup.button.callback('Click to Check Vibes 🔍', `vibes_check_${userId}`)]
-        ]).reply_markup
-      });
-    }
+    }];
 
     await ctx.answerInlineQuery(results, { cache_time: 0 });
   } catch (err) {
@@ -451,49 +169,8 @@ bot.on('inline_query', async (ctx) => {
 // Action: Show shared song details (from inline query)
 bot.action(/^share_show_(.+)$/, async (ctx) => {
   const senderId = ctx.match[1];
-  const senderName = ALLOWED_USERS[senderId] || 'Friend';
   await ctx.answerCbQuery();
-  await promptShare(ctx, senderId, senderName);
-});
-
-// Action: Check vibes (from inline query)
-bot.action(/^vibes_check_(.+)$/, async (ctx) => {
-  const senderId = ctx.match[1];
-  const senderName = ALLOWED_USERS[senderId] || 'Friend';
-  await ctx.answerCbQuery();
-  await handleVibes(ctx, senderId, senderName);
-});
-
-// Action: Add to Playlist
-bot.action(/^add_pl_(.+)$/, async (ctx) => {
-  const trackUri = ctx.match[1];
-  const userId = String(ctx.from.id);
-
-  try {
-    const playlistId = process.env.SPOTIFY_PLAYLIST_ID;
-    if (!playlistId) {
-      return ctx.answerCbQuery('Error: SPOTIFY_PLAYLIST_ID is missing from .env! Bad!', { show_alert: true });
-    }
-    await addTrackToPlaylist(userId, trackUri);
-    const alertMsg = getRandomLine('playlistSuccess');
-    await ctx.answerCbQuery(alertMsg, { show_alert: false });
-
-    // Update the inline keyboard to show a link to the playlist instead of the Add button
-    const playlistUrl = `https://open.spotify.com/playlist/${playlistId}`;
-    try {
-      await ctx.editMessageReplyMarkup(
-        Markup.inlineKeyboard([
-          [Markup.button.url('💿 Open Rocky\'s Playlist', playlistUrl)]
-        ]).reply_markup
-      );
-    } catch (editErr) {
-      console.error('Failed to edit reply markup after adding to playlist:', editErr);
-    }
-  } catch (err: any) {
-    console.error('Error adding track to playlist:', err);
-    const errMsg = getRandomLine('playlistError');
-    await ctx.answerCbQuery(errMsg, { show_alert: true });
-  }
+  await handleShare(ctx, senderId);
 });
 
 // Initialize Express App
@@ -512,7 +189,7 @@ app.get('/callback', async (req, res) => {
   const telegramName = ALLOWED_USERS[state];
   if (!telegramName) {
     console.warn(`Unauthorized login attempt on web callback for Telegram ID: ${state}`);
-    return res.status(403).send('Unauthorized. You are not on the allowed user list for this bot.');
+    return res.status(403).send('Unauthorized.');
   }
 
   try {
@@ -520,10 +197,9 @@ app.get('/callback', async (req, res) => {
     console.log(`Successfully authenticated Spotify for user ${telegramName} (${state})`);
 
     // Notify user on Telegram
-    const successMsg = getRandomLine('connectionSuccess');
     bot.telegram.sendMessage(
       state,
-      successMsg,
+      `✅ <b>Spotify connected successfully!</b>\nUse /menu or /share to start sharing!`,
       { parse_mode: 'HTML' }
     ).catch(err => console.error(`Failed to send Telegram confirmation message to ${state}:`, err));
 
@@ -703,7 +379,7 @@ app.get('/callback', async (req, res) => {
           </div>
           <span class="badge">Connected as ${telegramName}</span>
           <h1>Success!</h1>
-          <p>Your Spotify account is now linked securely with your private Telegram bot.</p>
+          <p>Your Spotify account is now linked securely.</p>
           <div class="instructions">
             You can close this page and return to Telegram. Try using <strong>/share</strong> in your chat!
           </div>
@@ -727,15 +403,13 @@ app.get('/callback', async (req, res) => {
 async function setBotCommands() {
   try {
     await bot.telegram.setMyCommands([
-      { command: 'menu', description: 'Show main menu with Share/Vibes buttons' },
-      { command: 'share', description: 'Share your currently playing Spotify song' },
-      { command: 'vibes', description: 'Check what your friend is listening to' },
-      { command: 'playlist', description: 'Get the link to the shared Spotify playlist' },
+      { command: 'menu', description: 'Show main menu' },
+      { command: 'share', description: 'Share what is playing on Spotify' },
       { command: 'login', description: 'Link your Spotify account' }
     ]);
     
-    await bot.telegram.setMyDescription("A private Spotify-integrated Telegram bot. Designed by a transgender person. Made with Antigravity 2.0, Gemini, and Telegraf.");
-    await bot.telegram.setMyShortDescription("Private music sharing bot. Designed by a transgender person. Made with Antigravity 2.0 & Gemini.");
+    await bot.telegram.setMyDescription("A private Spotify-integrated Telegram bot. Minimal, simple, and high-performance.");
+    await bot.telegram.setMyShortDescription("Minimal Spotify music sharing bot.");
     
     console.log('Bot commands and descriptions registered successfully.');
   } catch (err) {

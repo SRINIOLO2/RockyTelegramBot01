@@ -1,7 +1,7 @@
 services:
   spotify-bot:
     build: .
-    image: rocky-telegram-bot:v1.2.4
+    image: rocky-telegram-bot:v2.0.0
     container_name: spotify-telegram-bot
     restart: unless-stopped
     dns:
